@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/apimachinery/pkg/util/version"
 )
 
 const (
@@ -78,6 +79,19 @@ func main() {
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		logger.Fatalf("Error building kubernetes clientset: %v", err)
+	}
+
+	// Knative requires a Kubernetes cluster v1.10 or newer, making debugging hard. This makes it easier to
+	// figure out if kubernetes meet the requirement.
+	v, err := kubeClient.Discovery().ServerVersion()
+	if err != nil {
+		logger.Fatalf("ERROR communicating with apiserver: %v", err)
+	}
+	if ver, err := version.ParseGeneric(v.String()); err == nil {
+		info, err := ver.Compare("v1.10.0")
+		if info < 0 || err != nil {
+			glog.Fatalf("Knative requires a Kubernetes cluster v1.10 or newer, current version: %#v\n, err: %v", v, err)
+		}
 	}
 
 	buildClient, err := buildclientset.NewForConfig(cfg)
